@@ -1,73 +1,64 @@
-# Black Scholes Visualizer
+# OptiCalc.Quant - Black-Scholes Visualizer
 
-An interactive options pricing visualizer built with **Next.js**, **TypeScript**, and the **Black Scholes model**.  
-The app lets you explore how call and put prices and Greeks respond to changes in spot price, volatility, time to maturity, and the risk free rate through live heatmaps and metrics.
+A high-precision, interactive options pricing terminal designed for quantitative analysis. This web application visualizes European Call and Put option prices and Greeks using the Black-Scholes model, featuring real-time heatmaps and risk analysis tools.
 
----
+## 🚀 Features
 
-## Features
+### Core Pricing & Risk
+- **Real-time Black-Scholes Pricing**: Instant calculation of European Call and Put prices.
+- **The Greeks**: Live computation of Delta, Gamma, Theta, Vega, and Rho.
+- **Risk Metrics**: Probability ITM (In-The-Money) and Breakeven price calculation.
 
-### Market parameter controls
+### Interactive Visualization
+- **Dual Heatmaps**: Side-by-side visualization for Call and Put surfaces.
+- **Dynamic Axes**: X-axis (Spot Price) and Y-axis (Volatility) with adjustable grid scales.
+- **Precision Crosshairs**: Hover over heatmaps to see exact Spot, Volatility, and Metric values with a dynamic HUD.
 
-- Spot price `S`
-- Strike price `K`
-- Time to maturity `T`
-- Volatility `σ`
-- Risk free rate `r`
-- Sliders and numeric inputs with instant feedback
+### Analysis Modes
+- **Pricing Mode**: Visualize theoretical values across the volatility/spot surface.
+- **P&L Mode**: Switch to Profit & Loss view with diverging color scales (Red/Green) to visualize risk relative to a specific cost basis.
 
-### Analysis and metrics
+### Professional UI
+- **Quant-Terminal Aesthetic**: Dark mode interface designed for data density and readability.
+- **JetBrains Mono**: Monospace typography for numerical precision.
+- **Copy Analysis**: One-click export of current scenario parameters to clipboard.
 
-- Call and put values from the Black Scholes formula
-- Greeks:
-  - Delta
-  - Gamma
-  - Theta
-  - Vega
-  - Rho
-- Breakeven levels and in the money / out of the money indication
-- Pricing and P&L analysis modes (if enabled in your build)
+## 🛠 Tech Stack
 
-### Visualization
-
-- Dual panel layout for **call** and **put** surfaces
-- 2D heatmaps for price vs spot price and volatility
-- Adjustable grid resolution for both axes
-- Color gradients chosen to keep the surfaces readable even at high resolutions
-- Smooth transitions when parameters are updated
-
----
-
-## Tech stack
-
-- **Framework**: Next.js (React, TypeScript)
-- **Language**: TypeScript
+- **Frontend**: React 19, TypeScript
 - **Styling**: Tailwind CSS
-- **Charts and rendering**: Canvas or SVG based heatmaps
-- **Build tool**: Next.js toolchain with `npm`
+- **Fonts**: Inter (UI), JetBrains Mono (Data)
+- **Math**: Custom Black-Scholes implementation in TypeScript (Standard Normal CDF/PDF).
 
-If you are not using Next.js, the general structure still applies. Adjust the sections below to match your actual setup.
+## 📖 Usage
 
----
+### 1. Market Parameters
+Adjust the inputs in the sidebar to simulate different market conditions:
+- **Spot Price ($)**: Current price of the underlying asset.
+- **Strike Price ($)**: Exercise price of the option.
+- **Time to Maturity (Years)**: Time until expiration.
+- **Volatility (σ)**: Annualized standard deviation of returns.
+- **Risk-free Rate (%)**: Theoretical return of an investment with zero risk.
 
-## Screens
+### 2. Analysis Mode
+Toggle between **Pricing** and **P&L** in the sidebar.
+- In **P&L Mode**, the app snapshots the current theoretical price as the "Cost Basis". You can manually adjust the "Call Cost" and "Put Cost" to simulate different entry prices.
 
-The core screen is a single page that includes:
+### 3. Heatmap Navigation
+- **Hover**: Move mouse over the grid to inspect specific scenarios.
+- **Grid Scale**: Use the sliders at the bottom of the sidebar to zoom in/out on the Spot Price range (±%) and Volatility range (±σ).
 
-- Left panel with all market parameter inputs
-- Top bar with call and put headline values plus Greeks
-- Large central call heatmap
-- Large central put heatmap
+## 🧮 Mathematical Model
 
+The application uses the standard Black-Scholes-Merton formulas:
 
----
+$$ C(S, t) = N(d_1)S - N(d_2)Ke^{-r(T-t)} $$
+$$ P(S, t) = N(-d_2)Ke^{-r(T-t)} - N(-d_1)S $$
 
-## Getting started
+Where:
+- $d_1 = \frac{\ln(S/K) + (r + \sigma^2/2)(T-t)}{\sigma\sqrt{T-t}}$
+- $d_2 = d_1 - \sigma\sqrt{T-t}$
 
-### Prerequisites
+## 👨‍💻 Credits
 
-- **Node.js** version 18 or later  
-  Check your version:
-
-  ```bash
-  node -v
+**Built by Carl Stauffer**
