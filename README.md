@@ -5,23 +5,6 @@ The app lets you explore how call and put prices and Greeks respond to changes i
 
 ---
 
-## Table of contents
-
-- [Features](#features)
-- [Tech stack](#tech-stack)
-- [Screens](#screens)
-- [Getting started](#getting-started)
-- [Environment variables](#environment-variables)
-- [Available scripts](#available-scripts)
-- [Project structure](#project-structure)
-- [How the pricing works](#how-the-pricing-works)
-- [Deployment](#deployment)
-- [Troubleshooting](#troubleshooting)
-- [Contributing](#contributing)
-- [License](#license)
-
----
-
 ## Features
 
 ### Market parameter controls
