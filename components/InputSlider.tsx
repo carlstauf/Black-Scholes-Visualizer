@@ -1,4 +1,5 @@
-import React from 'react';
+
+import React, { useEffect, useState } from 'react';
 
 interface InputSliderProps {
   label: string;
@@ -8,6 +9,7 @@ interface InputSliderProps {
   max: number;
   step?: number;
   unit?: string;
+  disabled?: boolean;
 }
 
 export const InputSlider: React.FC<InputSliderProps> = ({
@@ -18,29 +20,43 @@ export const InputSlider: React.FC<InputSliderProps> = ({
   max,
   step = 1,
   unit = '',
+  disabled = false,
 }) => {
+  const [localVal, setLocalVal] = useState(value.toString());
+
+  useEffect(() => {
+    setLocalVal(value.toString());
+  }, [value]);
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      setLocalVal(e.target.value);
+      const val = parseFloat(e.target.value);
+      if (!isNaN(val)) {
+          onChange(val);
+      }
+  };
+
+  const percentage = Math.min(100, Math.max(0, ((value - min) / (max - min)) * 100));
+
   return (
-    <div className="group mb-5">
+    <div className={`group mb-5 ${disabled ? 'opacity-50 pointer-events-none' : ''}`}>
       <div className="flex justify-between items-center mb-2">
         <label className="text-[11px] font-medium text-neutral-500 uppercase tracking-widest group-hover:text-neutral-300 transition-colors">
           {label}
         </label>
-        <div className="flex items-center bg-neutral-900 border border-neutral-800 hover:border-neutral-600 transition-colors px-2 py-0.5">
+        <div className="flex items-center bg-neutral-900 border border-neutral-800 focus-within:border-neutral-500 transition-colors px-2 py-0.5">
             <input
                 type="number"
-                value={value}
+                value={localVal}
                 step={step}
-                onChange={(e) => {
-                    const val = parseFloat(e.target.value);
-                    if(!isNaN(val)) onChange(val);
-                }}
-                className="w-16 bg-transparent text-right text-xs font-mono text-neutral-200 focus:outline-none"
+                onChange={handleInputChange}
+                className="w-20 bg-transparent text-right text-xs font-mono text-neutral-200 focus:outline-none"
             />
-            {unit && <span className="text-[10px] text-neutral-600 ml-1 select-none font-mono">{unit}</span>}
+            {unit && <span className="text-[10px] text-neutral-600 ml-1 select-none font-mono w-4">{unit}</span>}
         </div>
       </div>
       
-      <div className="relative h-4 flex items-center">
+      <div className="relative h-5 flex items-center select-none">
         <input
             type="range"
             min={min}
@@ -48,19 +64,23 @@ export const InputSlider: React.FC<InputSliderProps> = ({
             step={step}
             value={value}
             onChange={(e) => onChange(parseFloat(e.target.value))}
-            className="absolute w-full h-full opacity-0 cursor-pointer z-10"
+            className="absolute w-full h-full opacity-0 cursor-pointer z-20"
         />
-        {/* Custom Track */}
-        <div className="w-full h-[1px] bg-neutral-800 relative">
+        {/* Track Container */}
+        <div className="w-full h-[2px] bg-neutral-800 relative z-10 overflow-visible">
+             {/* Filled Track */}
              <div 
-                className="h-full bg-neutral-400" 
-                style={{ width: `${((value - min) / (max - min)) * 100}%` }}
+                className="absolute top-0 left-0 h-full bg-neutral-500 transition-all duration-75 ease-out" 
+                style={{ width: `${percentage}%` }}
              />
-             {/* Custom Thumb */}
+             {/* Thumb */}
              <div 
-                className="absolute top-1/2 -translate-y-1/2 w-3 h-3 bg-neutral-200 border border-black shadow-sm transform transition-transform group-hover:scale-110"
-                style={{ left: `${((value - min) / (max - min)) * 100}%`, marginLeft: '-6px' }}
-             />
+                className="absolute top-1/2 -translate-y-1/2 w-4 h-4 bg-neutral-200 border-2 border-black shadow-[0_0_10px_rgba(255,255,255,0.2)] transition-all duration-75 ease-out z-30 group-hover:scale-110"
+                style={{ left: `${percentage}%`, marginLeft: '-8px' }}
+             >
+                {/* Inner dot for technical feel */}
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-0.5 h-0.5 bg-black rounded-full" />
+             </div>
         </div>
       </div>
     </div>

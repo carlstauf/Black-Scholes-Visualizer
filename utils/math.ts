@@ -41,6 +41,7 @@ export interface OptionMetrics {
   vega: number;
   theta: number;
   rho: number;
+  probITM: number;
 }
 
 export type HeatmapMetric = keyof OptionMetrics;
@@ -67,8 +68,8 @@ export const calculateBlackScholes = ({
     const callPrice = Math.max(0, S - K);
     const putPrice = Math.max(0, K - S);
     return {
-      call: { price: callPrice, delta: callPrice > 0 ? 1 : 0, gamma: 0, vega: 0, theta: 0, rho: 0 },
-      put: { price: putPrice, delta: putPrice > 0 ? -1 : 0, gamma: 0, vega: 0, theta: 0, rho: 0 },
+      call: { price: callPrice, delta: callPrice > 0 ? 1 : 0, gamma: 0, vega: 0, theta: 0, rho: 0, probITM: callPrice > 0 ? 1 : 0 },
+      put: { price: putPrice, delta: putPrice > 0 ? -1 : 0, gamma: 0, vega: 0, theta: 0, rho: 0, probITM: putPrice > 0 ? 1 : 0 },
       d1: 0,
       d2: 0,
     };
@@ -98,14 +99,15 @@ export const calculateBlackScholes = ({
 
   // Call Greeks
   const callDelta = Nd1;
-  // Theta (per year), typically divided by 365 for daily. We return annual magnitude.
   const callTheta = (- (S * nd1 * sigma) / (2 * Math.sqrt(T)) - r * K * e_rt * Nd2) / 365;
-  const callRho = K * T * e_rt * Nd2 * 0.01; // Scaled for 1% change in rates
+  const callRho = K * T * e_rt * Nd2 * 0.01;
+  const callProbITM = Nd2; // Risk-neutral probability of finishing ITM
 
   // Put Greeks
   const putDelta = Nd1 - 1;
   const putTheta = (- (S * nd1 * sigma) / (2 * Math.sqrt(T)) + r * K * e_rt * N_d2) / 365;
   const putRho = -K * T * e_rt * N_d2 * 0.01;
+  const putProbITM = N_d2;
 
   return {
     call: {
@@ -114,7 +116,8 @@ export const calculateBlackScholes = ({
       gamma: gamma,
       vega: vega,
       theta: callTheta,
-      rho: callRho
+      rho: callRho,
+      probITM: callProbITM
     },
     put: {
       price: putPrice,
@@ -122,7 +125,8 @@ export const calculateBlackScholes = ({
       gamma: gamma,
       vega: vega,
       theta: putTheta,
-      rho: putRho
+      rho: putRho,
+      probITM: putProbITM
     },
     d1,
     d2
@@ -142,4 +146,12 @@ export const interpolateColor = (
     return Math.round(c + f * (color2[i] - c));
   });
   return `rgb(${result[0]}, ${result[1]}, ${result[2]})`;
+};
+
+export const formatCurrency = (val: number) => {
+  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 }).format(val);
+};
+
+export const formatNumber = (val: number, decimals: number = 4) => {
+    return new Intl.NumberFormat('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals }).format(val);
 };
