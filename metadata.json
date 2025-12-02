@@ -1,0 +1,5 @@
+{
+  "name": "Black-Scholes Visualizer",
+  "description": "Interactive Black-Scholes option pricing calculator with real-time sensitivity heatmaps for European calls and puts.",
+  "requestFramePermissions": []
+}
