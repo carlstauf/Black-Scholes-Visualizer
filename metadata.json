@@ -1,5 +1,5 @@
 {
-  "name": "Black-Scholes Visualizer",
-  "description": "Interactive Black-Scholes option pricing calculator with real-time sensitivity heatmaps for European calls and puts.",
+  "name": "AuQuant - Gold Sentiment Engine",
+  "description": "A quantitative trading dashboard for Gold (XAU) that analyzes financial news and macro drivers to produce daily Buy/Sell/Hold signals using AI.",
   "requestFramePermissions": []
 }
