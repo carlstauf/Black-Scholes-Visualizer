@@ -1,295 +1,267 @@
-import React, { useState, useEffect } from 'react';
-import { LayoutDashboard, TrendingUp, Newspaper, Activity, Settings, Database, BrainCircuit, AlertTriangle } from 'lucide-react';
-import SignalBadge from './components/SignalBadge';
-import FactorCard from './components/FactorCard';
-import HistoryChart from './components/HistoryChart';
-import SimulationPanel from './components/SimulationPanel';
-import LiveNewsFeed from './components/LiveNewsFeed';
-import { GoldSignal, HistoricalPoint } from './types';
-import { INITIAL_SIGNAL, MOCK_HISTORY } from './constants';
-import { analyzeHeadlinesWithGemini, fetchLiveGoldNews } from './services/geminiService';
+
+import React, { useState } from 'react';
+import { calculateBlackScholes, BSInputs, HeatmapMetric, formatCurrency } from './utils/math';
+import { InputSlider } from './components/InputSlider';
+import { Heatmap } from './components/Heatmap';
 
 const App: React.FC = () => {
-  const [activeTab, setActiveTab] = useState('dashboard');
-  const [signalData, setSignalData] = useState<GoldSignal>(INITIAL_SIGNAL);
-  const [apiKey, setApiKey] = useState<string>("");
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  // Main Inputs
+  const [s, setS] = useState(100);    // Spot Price
+  const [k, setK] = useState(100);    // Strike Price
+  const [t, setT] = useState(1);      // Time (years)
+  const [v, setV] = useState(0.20);   // Volatility
+  const [r, setR] = useState(0.05);   // Risk-free rate
 
-  // Check for env key
-  useEffect(() => {
-    if (process.env.API_KEY) {
-      setApiKey(process.env.API_KEY);
-    }
-  }, []);
+  // UI State
+  const [heatmapMetric, setHeatmapMetric] = useState<HeatmapMetric>('price');
+  const [spotRange, setSpotRange] = useState(0.5); 
+  const [volRange, setVolRange] = useState(0.2); 
+  
+  // PnL / Risk Mode State
+  const [mode, setMode] = useState<'value' | 'pnl'>('value');
+  const [entryPrice, setEntryPrice] = useState<{call: number, put: number} | null>(null);
 
-  const handleAnalysis = async (headlines: string[]) => {
-    setIsAnalyzing(true);
-    setError(null);
-    try {
-      const newSignal = await analyzeHeadlinesWithGemini(headlines, apiKey);
-      setSignalData(newSignal);
-    } catch (err: any) {
-      setError(err.message || "Failed to analyze headlines.");
-    } finally {
-      setIsAnalyzing(false);
-    }
+  const inputs: BSInputs = { S: s, K: k, T: t, v: v, r: r };
+  const res = calculateBlackScholes(inputs);
+
+  // Auto-set entry price when switching to PnL if not set
+  const handleModeChange = (newMode: 'value' | 'pnl') => {
+      setMode(newMode);
+      if (newMode === 'pnl' && !entryPrice) {
+          setEntryPrice({ call: res.call.price, put: res.put.price });
+      }
   };
 
-  const handleFetchLiveHeadlines = async (): Promise<string[]> => {
-    try {
-      const articles = await fetchLiveGoldNews(apiKey);
-      // Format as "Headline - Source"
-      return articles.map(a => `${a.title} - ${a.source}`);
-    } catch (err) {
-      console.error(err);
-      setError("Failed to fetch live headlines. Ensure API Key is valid.");
-      return [];
-    }
+  const updateEntryPrice = (type: 'call' | 'put', val: number) => {
+      setEntryPrice(prev => ({ ...prev!, [type]: val }));
   };
 
-  const sentimentColor = signalData.gold_sentiment_score > 0 ? 'text-green-400' : 'text-red-400';
+  const copyAnalysis = () => {
+      const text = `BS Analysis:\nSpot: ${s}\nStrike: ${k}\nVol: ${(v*100).toFixed(1)}%\nTime: ${t}yr\n\nCall: $${res.call.price.toFixed(2)}\nPut: $${res.put.price.toFixed(2)}`;
+      navigator.clipboard.writeText(text);
+      // Simple alert for feedback - in a real app use a toast
+      alert("Analysis copied to clipboard");
+  };
+
+  // Computed Heatmap Boundaries
+  const minS = Math.max(1, s * (1 - spotRange));
+  const maxS = s * (1 + spotRange);
+  const minV = Math.max(0.01, v - volRange);
+  const maxV = Math.max(0.05, v + volRange);
 
   return (
-    <div className="min-h-screen bg-slate-950 flex flex-col md:flex-row font-sans">
-      {/* Sidebar Navigation */}
-      <aside className="w-full md:w-64 border-r border-slate-800 bg-slate-950 p-6 flex flex-col z-10 sticky top-0 h-auto md:h-screen">
-        <div className="flex items-center gap-3 mb-10">
-          <div className="w-8 h-8 bg-gold-500 rounded flex items-center justify-center">
-            <span className="font-bold text-slate-950 text-xl">Au</span>
-          </div>
-          <div>
-            <h1 className="text-xl font-bold text-slate-100 tracking-tight">AuQuant</h1>
-            <p className="text-xs text-slate-500 font-mono">ALPHA V1.0</p>
+    <div className="flex h-screen w-screen bg-black text-neutral-200 overflow-hidden font-sans selection:bg-cyan-900/50">
+      
+      {/* Sidebar: Control Panel */}
+      <aside className="w-80 border-r border-neutral-800 flex flex-col bg-[#050505] z-10 shadow-2xl">
+        <div className="p-5 border-b border-neutral-800 flex flex-col gap-1 bg-[#080808]">
+          <div className="flex items-center gap-2">
+             <div className="w-2 h-2 bg-white rotate-45 shadow-[0_0_10px_white]"></div>
+             <h1 className="text-sm font-bold tracking-widest uppercase text-white">
+                OptiCalc<span className="text-neutral-600">.Quant</span>
+             </h1>
           </div>
         </div>
 
-        <nav className="space-y-2 flex-1">
-          <NavButton icon={LayoutDashboard} label="Dashboard" active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} />
-          <NavButton icon={BrainCircuit} label="Sentiment Engine" active={activeTab === 'engine'} onClick={() => setActiveTab('engine')} />
-          <NavButton icon={Newspaper} label="News Feed" active={activeTab === 'news'} onClick={() => setActiveTab('news')} />
-          <NavButton icon={Activity} label="Performance" active={activeTab === 'performance'} onClick={() => setActiveTab('performance')} />
-        </nav>
+        <div className="flex-1 overflow-y-auto custom-scrollbar">
+            <div className="p-6 space-y-8">
+            {/* Section: Market Data */}
+            <section>
+                <div className="flex items-center justify-between mb-4 border-b border-neutral-800 pb-1">
+                <h2 className="text-[10px] font-bold uppercase tracking-widest text-cyan-600">Market Parameters</h2>
+                <div className="flex gap-3">
+                    <button 
+                        onClick={copyAnalysis}
+                        className="text-[9px] text-neutral-500 hover:text-cyan-400 transition-colors uppercase tracking-wider font-medium"
+                    >
+                        Copy
+                    </button>
+                    <button 
+                        onClick={() => {setS(100); setK(100); setT(1); setV(0.2); setR(0.05);}}
+                        className="text-[9px] text-neutral-500 hover:text-white transition-colors uppercase tracking-wider font-medium"
+                    >
+                        Reset
+                    </button>
+                </div>
+                </div>
+                
+                <div className="space-y-1">
+                    <InputSlider label="Spot Price (S)" value={s} min={1} max={500} onChange={setS} unit="$" />
+                    <InputSlider label="Strike Price (K)" value={k} min={1} max={500} onChange={setK} unit="$" />
+                    <InputSlider label="Time to Mat (T)" value={t} min={0.01} max={5} step={0.01} onChange={setT} unit="yr" />
+                    <InputSlider label="Volatility (σ)" value={v} min={0.01} max={1.5} step={0.01} onChange={setV} unit="abs" />
+                    <InputSlider label="Risk-free Rate (r)" value={r} min={0} max={0.2} step={0.001} onChange={setR} unit="%" />
+                </div>
+            </section>
 
-        <div className="mt-auto pt-6 border-t border-slate-800">
-           <div className="flex items-center gap-2 text-slate-500 text-xs">
-             <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-             System Operational
-           </div>
+            {/* Section: View Config */}
+            <section>
+                <h2 className="text-[10px] font-bold uppercase tracking-widest text-rose-600 mb-4 border-b border-neutral-800 pb-1">Analysis Mode</h2>
+                
+                {/* Mode Toggle */}
+                <div className="flex bg-neutral-900 border border-neutral-800 p-0.5 mb-6">
+                    <button 
+                        onClick={() => handleModeChange('value')}
+                        className={`flex-1 py-1.5 text-[10px] uppercase font-bold tracking-wider transition-all ${mode === 'value' ? 'bg-neutral-200 text-black shadow-sm' : 'text-neutral-500 hover:text-neutral-300'}`}
+                    >
+                        Pricing
+                    </button>
+                    <button 
+                        onClick={() => handleModeChange('pnl')}
+                        className={`flex-1 py-1.5 text-[10px] uppercase font-bold tracking-wider transition-all ${mode === 'pnl' ? 'bg-neutral-200 text-black shadow-sm' : 'text-neutral-500 hover:text-neutral-300'}`}
+                    >
+                        P&L
+                    </button>
+                </div>
+
+                {mode === 'pnl' && (
+                    <div className="mb-6 space-y-4 animate-in fade-in slide-in-from-top-2">
+                        <div className="bg-neutral-900/50 p-3 border border-neutral-800">
+                             <h3 className="text-[9px] text-neutral-400 uppercase tracking-widest mb-3">Cost Basis Reference</h3>
+                             <InputSlider label="Call Cost" value={entryPrice?.call || 0} min={0} max={200} step={0.01} onChange={(v) => updateEntryPrice('call', v)} unit="$" />
+                             <InputSlider label="Put Cost" value={entryPrice?.put || 0} min={0} max={200} step={0.01} onChange={(v) => updateEntryPrice('put', v)} unit="$" />
+                        </div>
+                    </div>
+                )}
+
+                <div className="mb-6">
+                    <label className="text-[10px] text-neutral-500 block mb-2 uppercase tracking-wide">Metric</label>
+                    <div className="grid grid-cols-3 gap-px bg-neutral-800 border border-neutral-800">
+                        {['price', 'delta', 'gamma', 'theta', 'vega', 'rho'].map((m) => (
+                            <button
+                                key={m}
+                                onClick={() => setHeatmapMetric(m as HeatmapMetric)}
+                                disabled={mode === 'pnl' && m !== 'price'} // PnL only supports price for now
+                                className={`
+                                    text-[10px] uppercase font-mono font-medium py-2 transition-all
+                                    ${heatmapMetric === m 
+                                        ? 'bg-neutral-200 text-black' 
+                                        : 'bg-neutral-900 text-neutral-500 hover:text-neutral-300'
+                                    }
+                                    ${mode === 'pnl' && m !== 'price' ? 'opacity-20 cursor-not-allowed' : ''}
+                                `}
+                            >
+                                {m}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+
+                <InputSlider label="Grid Scale (Spot)" value={spotRange} min={0.1} max={0.9} step={0.1} onChange={setSpotRange} unit="±%" />
+                <InputSlider label="Grid Scale (Vol)" value={volRange} min={0.05} max={0.5} step={0.05} onChange={setVolRange} unit="±σ" />
+            </section>
+            </div>
+        </div>
+
+        {/* Footer Attribution */}
+        <div className="p-4 border-t border-neutral-800 bg-neutral-900/30 backdrop-blur-sm">
+             <div className="flex flex-col items-start gap-1">
+                <div className="flex items-center gap-2">
+                    <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></div>
+                    <span className="text-[9px] text-neutral-500 font-mono">LIVE CONNECTION</span>
+                </div>
+                <span className="text-[9px] text-neutral-500 uppercase tracking-wider">
+                  Built by <span className="text-neutral-300 font-semibold hover:text-white cursor-pointer transition-colors">Carl Stauffer</span>
+                </span>
+             </div>
         </div>
       </aside>
 
-      {/* Main Content Area */}
-      <main className="flex-1 overflow-y-auto h-screen p-4 md:p-8 relative">
-        {/* Background Grid Decoration */}
-        <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-5 pointer-events-none"></div>
-        <div className="absolute top-0 right-0 w-96 h-96 bg-gold-500/5 rounded-full blur-3xl pointer-events-none"></div>
-
-        <header className="flex justify-between items-center mb-8 relative z-10">
-          <div>
-            <h2 className="text-2xl font-bold text-white mb-1">
-              {activeTab === 'dashboard' && 'Daily Overview'}
-              {activeTab === 'engine' && 'Sentiment Simulation'}
-              {activeTab === 'news' && 'Source Analysis'}
-              {activeTab === 'performance' && 'Strategy Backtest'}
-            </h2>
-            <p className="text-slate-400 text-sm">Last updated: {new Date().toLocaleDateString()} • 08:30 AM EST</p>
-          </div>
-          <div className="flex gap-4">
-             <div className="bg-slate-900 border border-slate-800 px-4 py-2 rounded-lg flex items-center gap-2">
-                <span className="text-xs text-slate-500 font-bold">XAU/USD</span>
-                <span className="text-gold-400 font-mono font-bold">$2,342.50</span>
-                <span className="text-green-500 text-xs font-mono">+0.4%</span>
-             </div>
-          </div>
-        </header>
-
-        {error && (
-          <div className="mb-6 bg-red-900/20 border border-red-500/50 text-red-200 p-4 rounded-lg flex items-center gap-3">
-            <AlertTriangle size={20} />
-            {error}
-          </div>
-        )}
-
-        {/* DASHBOARD TAB */}
-        {activeTab === 'dashboard' && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 relative z-10">
-            {/* Main Signal Column */}
-            <div className="lg:col-span-1 space-y-6">
-              <SignalBadge signal={signalData.signal} confidence={signalData.confidence} className="h-64" />
-              
-              <div className="bg-slate-900 border border-slate-800 rounded-xl p-6">
-                <h3 className="text-slate-400 text-sm font-bold mb-4 uppercase tracking-wider">Overall Sentiment</h3>
-                <div className="flex items-center justify-center py-4">
-                  <div className="text-5xl font-bold font-mono tracking-tighter text-white">
-                    {signalData.gold_sentiment_score > 0 ? '+' : ''}{signalData.gold_sentiment_score.toFixed(2)}
-                  </div>
-                </div>
-                <div className="text-center text-xs text-slate-500 font-mono mb-4">RANGE: -1.0 TO 1.0</div>
-                <p className={`text-center text-sm ${sentimentColor}`}>
-                   {signalData.gold_sentiment_score > 0.5 ? "Strongly Bullish" : signalData.gold_sentiment_score < -0.5 ? "Strongly Bearish" : "Neutral / Mixed"}
-                </p>
-              </div>
-
-              <div className="bg-slate-900 border border-slate-800 rounded-xl p-6">
-                 <h3 className="text-slate-400 text-sm font-bold mb-4 uppercase tracking-wider">Executive Summary</h3>
-                 <ul className="space-y-3">
-                   {signalData.summary.map((point, idx) => (
-                     <li key={idx} className="text-sm text-slate-300 leading-relaxed flex gap-3">
-                       <span className="text-gold-500 mt-1.5">•</span>
-                       {point}
-                     </li>
-                   ))}
-                 </ul>
-              </div>
-            </div>
-
-            {/* Charts & Drivers Column */}
-            <div className="lg:col-span-2 space-y-6">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {signalData.key_drivers.map((driver, idx) => (
-                  <FactorCard key={idx} factor={driver} />
-                ))}
-              </div>
-
-              <div className="bg-slate-900 border border-slate-800 rounded-xl p-6">
-                 <div className="flex justify-between items-center mb-6">
-                    <h3 className="text-slate-200 font-bold">Sentiment vs Price Correlation</h3>
-                    <div className="flex gap-2">
-                       <span className="text-xs text-slate-500 font-mono flex items-center gap-1"><div className="w-2 h-2 bg-gold-500 rounded-full"></div> PRICE</span>
-                       <span className="text-xs text-slate-500 font-mono flex items-center gap-1"><div className="w-2 h-2 bg-blue-500 rounded-full"></div> SENTIMENT</span>
+      {/* Main Workspace */}
+      <main className="flex-1 flex flex-col min-w-0 bg-[#0A0A0A]">
+        
+        {/* Top Data Bar */}
+        <div className="h-24 border-b border-neutral-800 bg-[#050505] flex divide-x divide-neutral-800">
+            {/* Price Cards */}
+            <div className="flex-1 flex">
+                 <div className="flex-1 px-6 py-3 flex flex-col justify-center relative overflow-hidden group">
+                    <div className="absolute top-0 left-0 w-1 h-full bg-cyan-600"></div>
+                    <div className="flex justify-between items-start mb-1">
+                         <span className="text-[10px] uppercase tracking-widest text-cyan-600 font-bold">Call Value</span>
+                         <span className="text-[10px] font-mono text-neutral-500">BE: {formatCurrency(k + res.call.price)}</span>
                     </div>
-                 </div>
-                 <HistoryChart data={MOCK_HISTORY} />
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ENGINE TAB */}
-        {activeTab === 'engine' && (
-          <div className="max-w-3xl mx-auto space-y-8 relative z-10">
-            <div className="text-center space-y-2 mb-8">
-              <h2 className="text-3xl font-bold text-white">Live Strategy Lab</h2>
-              <p className="text-slate-400">Feed the engine real-time headlines to test how the AuQuant algorithm interprets new data.</p>
-            </div>
-            
-            <SimulationPanel 
-              onAnalyze={handleAnalysis} 
-              isLoading={isAnalyzing} 
-              onApiKeyChange={setApiKey}
-              hasKey={!!apiKey}
-              onFetchLive={handleFetchLiveHeadlines}
-            />
-
-            {signalData.signal && (
-               <div className="border-t border-slate-800 pt-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
-                  <h3 className="text-slate-400 font-mono text-sm mb-4">GENERATED SIGNAL OUTPUT</h3>
-                  <div className="bg-slate-900 p-6 rounded-xl border border-slate-700">
-                    <div className="flex justify-between items-start">
-                       <div>
-                          <div className="text-4xl font-bold text-white mb-2">{signalData.signal}</div>
-                          <div className="text-gold-500 font-mono">SCORE: {signalData.gold_sentiment_score}</div>
-                       </div>
-                       <div className="text-right">
-                          <div className="text-sm text-slate-400">Confidence</div>
-                          <div className="text-2xl font-bold text-white">{signalData.confidence}%</div>
-                       </div>
+                    <div className="flex items-baseline gap-3 mb-1">
+                        <span className="text-3xl font-mono text-white tracking-tight">${res.call.price.toFixed(2)}</span>
+                        <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded-sm border ${s > k ? 'border-emerald-900 bg-emerald-950/30 text-emerald-400' : 'border-neutral-800 bg-neutral-900 text-neutral-500'}`}>
+                            {s > k ? 'ITM' : 'OTM'}
+                        </span>
                     </div>
-                    <div className="mt-6 grid gap-2">
-                      {signalData.summary.map((s, i) => (
-                        <div key={i} className="bg-slate-950 p-3 rounded border border-slate-800 text-sm text-slate-300">
-                          {s}
+                    <div className="flex items-center gap-2">
+                        <span className="text-[9px] text-neutral-500 uppercase tracking-wider">Prob. ITM</span>
+                        <div className="h-1 flex-1 bg-neutral-800 rounded-full overflow-hidden">
+                            <div className="h-full bg-cyan-600" style={{ width: `${res.call.probITM * 100}%` }}></div>
                         </div>
-                      ))}
+                        <span className="text-[9px] font-mono text-neutral-400">{(res.call.probITM * 100).toFixed(1)}%</span>
                     </div>
-                  </div>
-               </div>
-            )}
-          </div>
-        )}
-
-        {/* NEWS TAB (Simplified View) */}
-        {activeTab === 'news' && (
-           <div className="grid gap-4 max-w-4xl mx-auto relative z-10">
-              <LiveNewsFeed apiKey={apiKey} />
-              
-              <h3 className="text-slate-400 font-mono mb-2">TOP INFLUENCING ARTICLES (24H)</h3>
-              {signalData.top_articles.map((article, i) => (
-                <div key={i} className="bg-slate-900 p-5 rounded-lg border border-slate-800 hover:border-slate-600 transition-colors flex gap-4">
-                   <div className={`flex flex-col items-center justify-center w-16 h-16 rounded bg-slate-950 border ${
-                     article.impact_score > 0 ? 'border-green-900 text-green-500' : 'border-red-900 text-red-500'
-                   }`}>
-                      <span className="text-lg font-bold">{article.impact_score > 0 ? '+' : ''}{article.impact_score}</span>
-                      <span className="text-[10px] uppercase font-bold opacity-60">Impact</span>
-                   </div>
-                   <div className="flex-1">
-                      <div className="flex justify-between items-start mb-1">
-                        <span className="text-xs text-gold-500 font-mono uppercase tracking-wide">{article.source}</span>
-                        <span className="text-xs text-slate-500">{article.timestamp}</span>
-                      </div>
-                      <a href={article.url} target="_blank" rel="noopener noreferrer" className="hover:text-gold-400 transition-colors">
-                        <h4 className="text-lg font-medium text-slate-200 mb-2">{article.title}</h4>
-                      </a>
-                      <p className="text-sm text-slate-400 mb-3">{article.summary}</p>
-                      <div className="flex gap-2">
-                        {article.tags.map(tag => (
-                          <span key={tag} className="text-[10px] bg-slate-800 text-slate-400 px-2 py-1 rounded-full">{tag}</span>
-                        ))}
-                      </div>
-                   </div>
-                </div>
-              ))}
-           </div>
-        )}
-
-        {/* PERFORMANCE TAB */}
-        {activeTab === 'performance' && (
-           <div className="max-w-4xl mx-auto relative z-10 space-y-6">
-              <div className="bg-slate-900 p-6 rounded-xl border border-slate-800">
-                 <h3 className="text-slate-200 font-bold mb-6">Historical Backtest Metrics</h3>
-                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <MetricBox label="Sharpe Ratio" value="1.82" />
-                    <MetricBox label="Win Rate" value="64%" />
-                    <MetricBox label="Max Drawdown" value="-12.5%" />
-                    <MetricBox label="Total Return (YTD)" value="+18.4%" color="text-green-400" />
                  </div>
-              </div>
-              
-              <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 h-96 flex items-center justify-center">
-                 <div className="text-center text-slate-500">
-                    <Activity size={48} className="mx-auto mb-4 opacity-50" />
-                    <p>Detailed equity curve visualization would render here.</p>
-                    <p className="text-xs mt-2">Based on daily signal aggregation vs Spot Gold (XAU/USD).</p>
+                 
+                 <div className="flex-1 px-6 py-3 flex flex-col justify-center relative overflow-hidden bg-neutral-900/10">
+                    <div className="absolute top-0 left-0 w-1 h-full bg-rose-600"></div>
+                     <div className="flex justify-between items-start mb-1">
+                         <span className="text-[10px] uppercase tracking-widest text-rose-600 font-bold">Put Value</span>
+                         <span className="text-[10px] font-mono text-neutral-500">BE: {formatCurrency(k - res.put.price)}</span>
+                    </div>
+                    <div className="flex items-baseline gap-3 mb-1">
+                        <span className="text-3xl font-mono text-white tracking-tight">${res.put.price.toFixed(2)}</span>
+                         <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded-sm border ${s < k ? 'border-emerald-900 bg-emerald-950/30 text-emerald-400' : 'border-neutral-800 bg-neutral-900 text-neutral-500'}`}>
+                            {s < k ? 'ITM' : 'OTM'}
+                        </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <span className="text-[9px] text-neutral-500 uppercase tracking-wider">Prob. ITM</span>
+                        <div className="h-1 flex-1 bg-neutral-800 rounded-full overflow-hidden">
+                            <div className="h-full bg-rose-600" style={{ width: `${res.put.probITM * 100}%` }}></div>
+                        </div>
+                        <span className="text-[9px] font-mono text-neutral-400">{(res.put.probITM * 100).toFixed(1)}%</span>
+                    </div>
                  </div>
-              </div>
-           </div>
-        )}
+            </div>
+
+            {/* Greeks Tape */}
+            <div className="w-[450px] flex items-center px-6 gap-6 overflow-x-auto bg-[#080808]">
+                <GreekTicker label="Delta" val={res.call.delta} subVal={res.put.delta} />
+                <GreekTicker label="Gamma" val={res.call.gamma} />
+                <GreekTicker label="Theta" val={res.call.theta} />
+                <GreekTicker label="Vega" val={res.call.vega} />
+                <GreekTicker label="Rho" val={res.call.rho} />
+            </div>
+        </div>
+
+        {/* Heatmap Area */}
+        <div className="flex-1 p-3 grid grid-cols-1 md:grid-cols-2 gap-3 overflow-hidden">
+            <Heatmap 
+                type="call" 
+                metric={heatmapMetric}
+                baseInputs={inputs} 
+                minS={minS} maxS={maxS} 
+                minV={minV} maxV={maxV} 
+                mode={mode}
+                costBasis={entryPrice?.call || 0}
+            />
+            <Heatmap 
+                type="put" 
+                metric={heatmapMetric}
+                baseInputs={inputs} 
+                minS={minS} maxS={maxS} 
+                minV={minV} maxV={maxV}
+                mode={mode}
+                costBasis={entryPrice?.put || 0}
+            />
+        </div>
 
       </main>
     </div>
   );
 };
 
-const NavButton = ({ icon: Icon, label, active, onClick }: any) => (
-  <button
-    onClick={onClick}
-    className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all ${
-      active 
-        ? 'bg-gold-500/10 text-gold-400 border border-gold-500/20' 
-        : 'text-slate-400 hover:bg-slate-900 hover:text-slate-200'
-    }`}
-  >
-    <Icon size={18} />
-    {label}
-  </button>
-);
-
-const MetricBox = ({ label, value, color = "text-white" }: any) => (
-  <div className="bg-slate-950 p-4 rounded-lg border border-slate-800 text-center">
-    <div className={`text-2xl font-bold font-mono ${color}`}>{value}</div>
-    <div className="text-xs text-slate-500 uppercase tracking-wider mt-1">{label}</div>
-  </div>
+const GreekTicker = ({ label, val, subVal }: { label: string, val: number, subVal?: number }) => (
+    <div className="flex flex-col min-w-[60px] group cursor-default">
+        <span className="text-[9px] uppercase text-neutral-600 font-bold tracking-wider group-hover:text-neutral-400 transition-colors">{label}</span>
+        <span className="text-sm font-mono text-neutral-200">{val.toFixed(3)}</span>
+        {subVal !== undefined && (
+             <span className="text-[10px] font-mono text-neutral-600">{subVal.toFixed(3)}</span>
+        )}
+    </div>
 );
 
 export default App;
